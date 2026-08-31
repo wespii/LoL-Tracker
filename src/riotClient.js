@@ -41,16 +41,24 @@ async function fetchNormalStats(puuid, continent, apiKey) {
     if (ids.length < 100) break;
   }
   let wins = 0, losses = 0;
-  for (const matchId of matchIds) {
-    if (wins + losses >= 50) break;
-    const matchUrl = `https://${continent}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`;
-    const match = await riotRequest(matchUrl, apiKey);
-    if (!NORMAL_QUEUES.has(match.info.queueId)) continue;
-    const participant = match.info.participants.find(p => p.puuid === puuid);
-    if (!participant) continue;
-    if (participant.win) wins++; else losses++;
+  const championCounts = {};
+  for (let i = 0; i < matchIds.length && wins + losses < 50; i += 5) {
+    const batch = matchIds.slice(i, i + 5).map(matchId => {
+      const matchUrl = `https://${continent}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`;
+      return riotRequest(matchUrl, apiKey);
+    });
+    const matches = await Promise.all(batch);
+    for (const match of matches) {
+      if (!NORMAL_QUEUES.has(match.info.queueId)) continue;
+      const participant = match.info.participants.find(p => p.puuid === puuid);
+      if (!participant) continue;
+      if (participant.win) wins++; else losses++;
+      if (participant.championName) championCounts[participant.championName] = (championCounts[participant.championName] || 0) + 1;
+      if (wins + losses >= 50) break;
+    }
   }
-  return { wins, losses, games: wins + losses, limit: 50 };
+  const mostPlayed = Object.entries(championCounts).sort((a, b) => b[1] - a[1])[0];
+  return { wins, losses, games: wins + losses, limit: 50, mostPlayed: mostPlayed ? { name: mostPlayed[0], games: mostPlayed[1] } : null };
 }
 
 async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, apiKey) {
@@ -91,6 +99,8 @@ async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, ap
 }
 
 module.exports = { fetchPlayerData };
+
+
 
 
 
