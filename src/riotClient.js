@@ -6,7 +6,8 @@ const PLATFORM_TO_CONTINENT = {
 const QUEUE_MAP = { solo: 'RANKED_SOLO_5x5', flex: 'RANKED_FLEX_SR' };
 const NORMAL_QUEUES = new Set([400, 430, 480, 490]);
 const PLAYER_CACHE = new Map();
-const CACHE_TTL_MS = 60 * 1000;
+const IN_FLIGHT = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 function getContinentalRegion(region) {
   const platform = (region || '').toLowerCase();
@@ -62,7 +63,7 @@ async function fetchNormalStats(puuid, continent, apiKey) {
   return { wins, losses, games: wins + losses, limit: 50, mostPlayed: mostPlayed ? { name: mostPlayed[0], games: mostPlayed[1] } : null };
 }
 
-async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, apiKey) {
+async function fetchPlayerDataUncached({ gameName, tagLine, region, queue = 'solo' }, apiKey) {
   if (!gameName || !tagLine || !region) throw { status: 400, code: 'MISSING_PARAMS', message: 'Faltan parametros' };
   const normalizedGameName = String(gameName).trim();
   const normalizedTagLine = String(tagLine).trim().replace(/^#/, '');
@@ -80,25 +81,30 @@ async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, ap
     return result;
   }
 
-  const summonerUrl = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${account.puuid}`;
-  const summoner = await riotRequest(summonerUrl, apiKey);
   const queueType = QUEUE_MAP[queue] || QUEUE_MAP.solo;
-  let entries;
-  const summonerId = summoner.id || summoner.summonerId;
-  if (summonerId) {
-    const leagueUrl = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`;
-    entries = await riotRequest(leagueUrl, apiKey);
-  } else {
-    const leagueUrl = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${account.puuid}`;
-    entries = await riotRequest(leagueUrl, apiKey);
-  }
+  const leagueUrl = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${account.puuid}`;
+  const entries = await riotRequest(leagueUrl, apiKey);
   const entry = entries.find(e => e.queueType === queueType) || null;
-  const result = { gameName: account.gameName, tagLine: account.tagLine, summonerLevel: summoner.summonerLevel, profileIconId: summoner.profileIconId, ranked: entry ? { tier: entry.tier, rank: entry.rank, lp: entry.leaguePoints, wins: entry.wins, losses: entry.losses } : null };
+  const result = { gameName: account.gameName, tagLine: account.tagLine, ranked: entry ? { tier: entry.tier, rank: entry.rank, lp: entry.leaguePoints, wins: entry.wins, losses: entry.losses } : null };
   PLAYER_CACHE.set(cacheKey, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
   return result;
 }
 
+async function fetchPlayerData(params, apiKey) {
+  const key = `${String(params.gameName || "").toLowerCase()}#${String(params.tagLine || "").toLowerCase()}@${String(params.region || "").toLowerCase()}:${params.queue || "solo"}`;
+  if (IN_FLIGHT.has(key)) return IN_FLIGHT.get(key);
+  const request = fetchPlayerDataUncached(params, apiKey);
+  IN_FLIGHT.set(key, request);
+  try { return await request; } finally { IN_FLIGHT.delete(key); }
+}
+
 module.exports = { fetchPlayerData };
+
+
+
+
+
+
 
 
 
