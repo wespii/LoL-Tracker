@@ -4,7 +4,7 @@ const PLATFORM_TO_CONTINENT = {
   euw1: 'europe', eun1: 'europe', tr1: 'europe', ru: 'europe', kr: 'asia', jp1: 'asia',
 };
 const QUEUE_MAP = { solo: 'RANKED_SOLO_5x5', flex: 'RANKED_FLEX_SR' };
-const NORMAL_QUEUES = new Set([400, 430, 490]);
+const NORMAL_QUEUES = new Set([400, 430, 480, 490]);
 const PLAYER_CACHE = new Map();
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -33,13 +33,14 @@ async function riotRequest(url, apiKey) {
 }
 
 async function fetchNormalStats(puuid, continent, apiKey) {
-  let matchIds = [];
-  for (let start = 0; start < 200 && matchIds.length < 200; start += 100) {
-    const idsUrl = `https://${continent}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=${start}&count=100`;
+  const normalQueueIds = [400, 430, 480, 490];
+  const uniqueIds = new Set();
+  for (const queueId of normalQueueIds) {
+    const idsUrl = `https://${continent}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?start=0&count=50&queue=${queueId}`;
     const ids = await riotRequest(idsUrl, apiKey);
-    matchIds.push(...ids);
-    if (ids.length < 100) break;
+    ids.forEach(id => uniqueIds.add(id));
   }
+  const matchIds = [...uniqueIds].slice(0, 50);
   let wins = 0, losses = 0;
   const championCounts = {};
   for (let i = 0; i < matchIds.length && wins + losses < 50; i += 5) {
@@ -49,7 +50,7 @@ async function fetchNormalStats(puuid, continent, apiKey) {
     });
     const matches = await Promise.all(batch);
     for (const match of matches) {
-      if (!NORMAL_QUEUES.has(match.info.queueId)) continue;
+      if (!NORMAL_QUEUES.has(Number(match.info.queueId))) continue;
       const participant = match.info.participants.find(p => p.puuid === puuid);
       if (!participant) continue;
       if (participant.win) wins++; else losses++;
@@ -73,15 +74,14 @@ async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, ap
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   const accountUrl = `https://${continent}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(normalizedGameName)}/${encodeURIComponent(normalizedTagLine)}`;
   const account = await riotRequest(accountUrl, apiKey);
-  const summonerUrl = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${account.puuid}`;
-  const summoner = await riotRequest(summonerUrl, apiKey);
-
   if (queue === 'normal') {
-    const result = { gameName: account.gameName, tagLine: account.tagLine, summonerLevel: summoner.summonerLevel, profileIconId: summoner.profileIconId, normal: await fetchNormalStats(account.puuid, continent, apiKey) };
+    const result = { gameName: account.gameName, tagLine: account.tagLine, normal: await fetchNormalStats(account.puuid, continent, apiKey) };
     PLAYER_CACHE.set(cacheKey, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
     return result;
   }
 
+  const summonerUrl = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${account.puuid}`;
+  const summoner = await riotRequest(summonerUrl, apiKey);
   const queueType = QUEUE_MAP[queue] || QUEUE_MAP.solo;
   let entries;
   const summonerId = summoner.id || summoner.summonerId;
@@ -99,6 +99,14 @@ async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, ap
 }
 
 module.exports = { fetchPlayerData };
+
+
+
+
+
+
+
+
 
 
 
