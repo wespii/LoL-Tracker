@@ -5,6 +5,8 @@ const PLATFORM_TO_CONTINENT = {
 };
 const QUEUE_MAP = { solo: 'RANKED_SOLO_5x5', flex: 'RANKED_FLEX_SR' };
 const NORMAL_QUEUES = new Set([400, 430, 490]);
+const PLAYER_CACHE = new Map();
+const CACHE_TTL_MS = 60 * 1000;
 
 function getContinentalRegion(region) {
   const platform = (region || '').toLowerCase();
@@ -58,13 +60,18 @@ async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, ap
   if (!normalizedGameName || !normalizedTagLine) throw { status: 400, code: 'BAD_RIOT_ID', message: 'Riot ID invalido' };
   const platform = region.toLowerCase();
   const continent = getContinentalRegion(platform);
+  const cacheKey = `${normalizedGameName.toLowerCase()}#${normalizedTagLine.toLowerCase()}@${platform}:${queue}`;
+  const cached = PLAYER_CACHE.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
   const accountUrl = `https://${continent}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(normalizedGameName)}/${encodeURIComponent(normalizedTagLine)}`;
   const account = await riotRequest(accountUrl, apiKey);
   const summonerUrl = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${account.puuid}`;
   const summoner = await riotRequest(summonerUrl, apiKey);
 
   if (queue === 'normal') {
-    return { gameName: account.gameName, tagLine: account.tagLine, summonerLevel: summoner.summonerLevel, profileIconId: summoner.profileIconId, normal: await fetchNormalStats(account.puuid, continent, apiKey) };
+    const result = { gameName: account.gameName, tagLine: account.tagLine, summonerLevel: summoner.summonerLevel, profileIconId: summoner.profileIconId, normal: await fetchNormalStats(account.puuid, continent, apiKey) };
+    PLAYER_CACHE.set(cacheKey, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
+    return result;
   }
 
   const queueType = QUEUE_MAP[queue] || QUEUE_MAP.solo;
@@ -78,9 +85,13 @@ async function fetchPlayerData({ gameName, tagLine, region, queue = 'solo' }, ap
     entries = await riotRequest(leagueUrl, apiKey);
   }
   const entry = entries.find(e => e.queueType === queueType) || null;
-  return { gameName: account.gameName, tagLine: account.tagLine, summonerLevel: summoner.summonerLevel, profileIconId: summoner.profileIconId, ranked: entry ? { tier: entry.tier, rank: entry.rank, lp: entry.leaguePoints, wins: entry.wins, losses: entry.losses } : null };
+  const result = { gameName: account.gameName, tagLine: account.tagLine, summonerLevel: summoner.summonerLevel, profileIconId: summoner.profileIconId, ranked: entry ? { tier: entry.tier, rank: entry.rank, lp: entry.leaguePoints, wins: entry.wins, losses: entry.losses } : null };
+  PLAYER_CACHE.set(cacheKey, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
+  return result;
 }
 
 module.exports = { fetchPlayerData };
+
+
 
 
