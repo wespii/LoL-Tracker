@@ -5,16 +5,12 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "dev:local": "node server.js",
-    "dev:netlify": "netlify dev"
+    "dev:local": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2"
-  },
-  "devDependencies": {
-    "netlify-cli": "^17.33.1"
   },
   "engines": {
     "node": ">=18"
