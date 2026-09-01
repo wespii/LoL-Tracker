@@ -43,3 +43,12 @@ create index if not exists player_matches_match_id_idx
 alter table public.players enable row level security;
 alter table public.matches enable row level security;
 alter table public.player_matches enable row level security;
+
+-- Tablas compartidas. El backend usa la service role key; no se expone al navegador.
+create table if not exists public.shared_tables (
+  code text primary key check (code ~ '^[A-Z2-9]{8}$'),
+  tables jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.shared_tables enable row level security;

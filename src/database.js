@@ -28,4 +28,31 @@ async function saveMatchAndPlayer({ matchId, region, match, puuid, participant, 
   if (error) console.error('[Supabase] savePlayerMatch:', error.message);
 }
 
-module.exports = { enabled, savePlayer, getCachedPlayerMatches, saveMatchAndPlayer };
+function makeTableCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
+}
+
+async function createSharedTable(tables) {
+  if (!enabled()) return null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = makeTableCode();
+    const { data, error } = await supabase.from('shared_tables').insert({ code, tables }).select('code').single();
+    if (!error) return data.code;
+    if (error.code !== '23505') console.error('[Supabase] createSharedTable:', error.message);
+  }
+  throw new Error('No se pudo generar un código de tabla');
+}
+
+async function getSharedTable(code) {
+  if (!enabled()) return null;
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z2-9]{8}$/.test(normalized)) return null;
+  const { data, error } = await supabase.from('shared_tables').select('tables').eq('code', normalized).maybeSingle();
+  if (error) { console.error('[Supabase] getSharedTable:', error.message); throw error; }
+  return data ? data.tables : null;
+}
+
+module.exports = { enabled, savePlayer, getCachedPlayerMatches, saveMatchAndPlayer, createSharedTable, getSharedTable };
