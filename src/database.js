@@ -1,7 +1,13 @@
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
 
-const url = process.env.SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getSecret(name) {
+  if (process.env[name]) return process.env[name].trim();
+  try { return fs.readFileSync(`/etc/secrets/${name}`, 'utf8').trim(); } catch (_) { return ''; }
+}
+
+const url = getSecret('SUPABASE_URL');
+const key = getSecret('SUPABASE_SERVICE_ROLE_KEY');
 const supabase = url && key ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
 
 function enabled() { return Boolean(supabase); }
