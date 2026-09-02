@@ -37,9 +37,6 @@ El servidor rechazara las consultas publicas si `RIOT_KEY_TYPE` no es `productio
 - El ID compartido contiene los Riot ID de la tabla; tratalo como informacion compartible solo con personas autorizadas.
 - No introduzcas la API key en el frontend ni en GitHub.
 
-## Datos consultados
-
-El proyecto usa endpoints documentados de Riot para Account, League y Match. No usa scraping, chat ni endpoints privados. Las regiones incluyen LAS (`la2`).
 
 ## Perfil y preparacion de base de datos
 
