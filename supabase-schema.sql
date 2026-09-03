@@ -51,4 +51,7 @@ create table if not exists public.shared_tables (
   created_at timestamptz not null default now()
 );
 
+-- Evita duplicados exactos y acelera la reutilización de códigos existentes.
+create index if not exists shared_tables_tables_idx on public.shared_tables using gin (tables);
+
 alter table public.shared_tables enable row level security;

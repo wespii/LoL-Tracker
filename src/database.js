@@ -45,6 +45,9 @@ function makeTableCode() {
 
 async function createSharedTable(tables) {
   if (!enabled()) return null;
+  // JSONB equality lets repeated clicks reuse the existing share code.
+  const existing = await supabase.from('shared_tables').select('code').eq('tables', tables).limit(1).maybeSingle();
+  if (!existing.error && existing.data) return existing.data.code;
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = makeTableCode();
     const { data, error } = await supabase.from('shared_tables').insert({ code, tables }).select('code').single();

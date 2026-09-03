@@ -8,6 +8,7 @@ const { createRateLimiter, publicError, securityHeaders, validatePlayerQuery, va
 const app = express();
 const PORT = process.env.PORT || 3000;
 const rateLimit = createRateLimiter();
+const generationLimit = createRateLimiter({ windowMs: 15_000, max: 1 });
 
 app.disable('x-powered-by');
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : false, methods: ['GET', 'POST'] }));
@@ -22,6 +23,8 @@ app.use(express.json({ limit: '100kb' }));
 
 app.post('/api/tabla', async (req, res) => {
   try {
+    const generation = generationLimit(req.ip);
+    if (!generation.allowed) return res.status(429).set('Retry-After', String(generation.retryAfter)).json({ error: 'Espera unos segundos antes de generar otro ID.', code: 'GENERATION_COOLDOWN' });
     const tables = req.body && req.body.tables;
     if (!validateTables(tables)) return res.status(400).json({ error: 'Datos de tabla inválidos' });
     const code = await createSharedTable(tables);
