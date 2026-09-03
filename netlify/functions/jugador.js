@@ -1,27 +1,17 @@
-// netlify/functions/jugador.js
-// Netlify convierte este archivo en el endpoint /.netlify/functions/jugador,
-// que el netlify.toml redirige a /api/jugador para que el cliente no note la diferencia.
-
 const { fetchPlayerData } = require('../../src/riotClient');
+const { createRateLimiter, publicError, securityHeaders, validatePlayerQuery } = require('../../src/httpSecurity');
 
-exports.handler = async (event) => {
-  const params = event.queryStringParameters || {};
-  const { gameName, tagLine, region, queue } = params;
-
+const rateLimit = createRateLimiter();
+exports.handler = async event => {
+  const ip = event.headers['x-nf-client-connection-ip'] || 'unknown';
+  const limit = rateLimit(ip);
+  if (!limit.allowed) return response(429, { error: 'Demasiadas solicitudes. Intenta más tarde.', code: 'RATE_LIMITED' }, { 'Retry-After': String(limit.retryAfter) });
   try {
-    const data = await fetchPlayerData({ gameName, tagLine, region, queue }, process.env.RIOT_API_KEY);
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    };
+    const params = validatePlayerQuery(event.queryStringParameters || {}, { requireQueue: true });
+    return response(200, await fetchPlayerData(params, process.env.RIOT_API_KEY));
   } catch (err) {
-    // err viene con { status, code, message } gracias a riotClient.js
-    const status = err.status || 500;
-    return {
-      statusCode: status,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: err.message || 'Error interno', code: err.code || 'UNKNOWN' }),
-    };
+    const error = publicError(err, 'No se pudo consultar al jugador');
+    return response(error.status, error.body);
   }
 };
+function response(statusCode, body, extra) { return { statusCode, headers: securityHeaders(extra), body: JSON.stringify(body) }; }

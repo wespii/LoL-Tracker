@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
+const crypto = require('crypto');
 
 function getSecret(name) {
   if (process.env[name]) return process.env[name].trim();
@@ -37,7 +38,8 @@ async function saveMatchAndPlayer({ matchId, region, match, puuid, participant, 
 function makeTableCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
-  for (let i = 0; i < 8; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  const bytes = crypto.randomBytes(8);
+  for (let i = 0; i < 8; i++) code += alphabet[bytes[i] % alphabet.length];
   return code;
 }
 
