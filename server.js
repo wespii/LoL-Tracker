@@ -11,7 +11,7 @@ const rateLimit = createRateLimiter();
 
 app.disable('x-powered-by');
 app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : false, methods: ['GET', 'POST'] }));
-app.use((req, res, next) => { res.set(securityHeaders()); next(); });
+app.use((req, res, next) => { const headers = securityHeaders(); delete headers['Content-Type']; res.set(headers); next(); });
 app.use('/api', (req, res, next) => {
   const result = rateLimit(req.ip);
   if (!result.allowed) return res.status(429).set('Retry-After', String(result.retryAfter)).json({ error: 'Demasiadas solicitudes. Intenta más tarde.', code: 'RATE_LIMITED' });
