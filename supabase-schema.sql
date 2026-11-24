@@ -38,7 +38,7 @@ create index if not exists player_matches_puuid_played_at_idx
 create index if not exists player_matches_match_id_idx
   on public.player_matches (match_id);
 
--- El backend usara la service role key; el frontend nunca debe conectarse
+-- El backend usará la service role key; el frontend nunca debe conectarse
 -- directamente con esta base de datos.
 alter table public.players enable row level security;
 alter table public.matches enable row level security;
